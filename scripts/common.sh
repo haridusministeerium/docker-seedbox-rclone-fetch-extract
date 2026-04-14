@@ -105,14 +105,10 @@ err_from_borg() {  # TODO rename back to err() if/when we start using the built-
 
     while getopts 'FNM' opt; do
         case "$opt" in
-            F) f='-F'  # only to be provided by fail(), ie do not pass -F flag to err() yourself!
-                ;;
-            N) no_notif=1
-                ;;
-            M) NO_SEND_MAIL=true  # note this would be redundant if -N is already given
-                ;;
-            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            F) f='-F' ;;  # only to be provided by fail(), ie do not pass -F flag to err() yourself!
+            N) no_notif=1 ;;
+            M) NO_SEND_MAIL=true ;;  # note this would be redundant if -N is already given
+            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -165,20 +161,13 @@ mail() {
 
     while getopts 'Ft:f:s:b:a:' opt; do
         case "$opt" in
-            F) is_fail=true
-                ;;
-            t) to="$OPTARG"
-                ;;
-            f) from="$OPTARG"
-                ;;
-            s) subj="$OPTARG"
-                ;;
-            b) body="$OPTARG"
-                ;;
-            a) acc="$OPTARG"
-                ;;
-            *) fail -M "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            F) is_fail=true ;;
+            t) to="$OPTARG" ;;
+            f) from="$OPTARG" ;;
+            s) subj="$OPTARG" ;;
+            b) body="$OPTARG" ;;
+            a) acc="$OPTARG" ;;
+            *) fail -M "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -205,20 +194,13 @@ pushover() {
 
     while getopts 'Fs:b:p:r:e:' opt; do
         case "$opt" in
-            F) is_fail=true
-                ;;
-            s) subj="$OPTARG"
-                ;;
-            b) body="$OPTARG"
-                ;;
-            p) prio="$OPTARG"
-                ;;
-            r) retry="$OPTARG"
-                ;;
-            e) expire="$OPTARG"
-                ;;
-            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            F) is_fail=true ;;
+            s) subj="$OPTARG" ;;
+            b) body="$OPTARG" ;;
+            p) prio="$OPTARG" ;;
+            r) retry="$OPTARG" ;;
+            e) expire="$OPTARG" ;;
+            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -262,12 +244,9 @@ hcio() {
 
     while getopts 'Fb:' opt; do
         case "$opt" in
-            F) is_fail=true
-                ;;
-            b) body="$OPTARG"
-                ;;
-            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            F) is_fail=true ;;
+            b) body="$OPTARG" ;;
+            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -412,10 +391,8 @@ join() {
 
     while getopts 's:' opt; do
         case "$opt" in
-            s) sep="$OPTARG"
-                ;;
-            *) fail "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            s) sep="$OPTARG" ;;
+            *) fail "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -580,17 +557,10 @@ space_left() {
     coef=0.0009765625  # note we default $coef to return in KiB
     while getopts 'Gkbr' opt; do
         case "$opt" in
-           G) # in GigaBytes (GB)
-              coef=0.000000001  # bytes -> GB, ie in GigaBytes
-                ;;
-           k) # in kibibytes (KiB)
-              coef=0.0009765625  # bytes -> KiB, ie in kibibytes
-                ;;
-           b) # in bytes
-              coef=1  # bytes -> bytes
-                ;;
-           r) round=1  # if result should be rounded to nearest integer
-                ;;
+           G) coef=0.000000001 ;;  # bytes -> GB, ie in GigaBytes
+           k) coef=0.0009765625 ;;  # bytes -> KiB, ie in kibibytes
+           b) coef=1 ;;  # bytes -> bytes
+           r) round=1 ;;  # if result should be rounded to nearest integer
            *) return 1 ;;
         esac
     done
@@ -622,17 +592,10 @@ get_size() {
     coef=0.0009765625  # note we default $coef to return in KiB
     while getopts 'Gkbr' opt; do
         case "$opt" in
-           G) # in GigaBytes (GB)
-              coef=0.000000001  # bytes -> GB, ie in GigaBytes
-                ;;
-           k) # in kibibytes (KiB)
-              coef=0.0009765625  # bytes -> KiB, ie in kibibytes
-                ;;
-           b) # in bytes
-              coef=1  # bytes -> bytes
-                ;;
-           r) round=1  # if result should be rounded to nearest integer
-                ;;
+           G) coef=0.000000001 ;;  # bytes -> GB, ie in GigaBytes
+           k) coef=0.0009765625 ;;  # bytes -> KiB, ie in kibibytes
+           b) coef=1 ;;  # bytes -> bytes
+           r) round=1 ;;  # if result should be rounded to nearest integer
            *) return 1 ;;
         esac
     done
@@ -671,8 +634,7 @@ block_until_pids_finish() {
     e=0  # default errcode to 0
     while getopts 't:' opt; do
         case "$opt" in
-           t) countdown="$OPTARG"
-                ;;
+           t) countdown="$OPTARG" ;;
            *) return 1 ;;
         esac
     done
@@ -824,6 +786,7 @@ mkdir_w_rights() {
 }
 
 
+# alternatively, "${i%%+(/)}", but requires `shopt -s extglob`
 trim_trailing_slashes() {
     sed 's:/*$::' <<< "$*"
 }

@@ -12,10 +12,8 @@ _kill_other_process() {
     signal=SIGTERM
     while getopts 'k' opt; do
         case "$opt" in
-            k) signal=SIGKILL
-                ;;
-            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]"
-                ;;
+            k) signal=SIGKILL ;;
+            *) fail -N "$FUNCNAME called with unsupported flag(s) [$opt]" ;;
         esac
     done
     shift "$((OPTIND-1))"
@@ -42,7 +40,7 @@ check_for_rclone_stall() {
     local size last_size last_time time time_d
 
     _write_state() {
-        echo -n "${time}:$size" > "$RCLONE_STATEFILE"
+        echo -n "${time}:$size" >| "$RCLONE_STATEFILE"
     }
 
     size="$(get_size -b "$DEST_INITIAL")"
@@ -74,15 +72,120 @@ check_for_rclone_stall() {
 }
 
 
+nuke_local_assets() {
+    local rmt_nodes excluded_path i
+
+    rmt_nodes=("$@")
+
+    if [[ -z "$SKIP_LOCAL_RM" ]]; then
+        # exclude DEST_INITIAL in case it defaults to a dir under DEST_FINAL/:
+        excluded_path="$DEST_INITIAL"
+        [[ "$DEPTH" -gt 1 ]] && excluded_path+='/*'
+
+        while IFS= read -r -d $'\0' i; do
+            if ! contains "${i##"${DEST_FINAL}/"}" "${rmt_nodes[@]}"; then
+                rm -rf -- "$i" \
+                        && info "removed [$i] whose remote counterpart is gone" \
+                        || err "[rm -rf $i] failed w/ $?"
+            fi
+        done< <(find -L "$DEST_FINAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -not \( -path "$excluded_path" -prune \) -print0)
+    fi
+}
+
+
+# process assets.
+# note we work on _all_ nodes in $DEST_INITIAL, not only ones
+# that were pulled during this execution; this is essentially
+# for retrying failures from previous runs:
+post_process() {
+    local i f_relative dest_dir
+
+    while IFS= read -r -d $'\0' i; do
+        f_relative="${i##"${DEST_INITIAL}/"}"
+        dest_dir="$(dirname -- "$DEST_FINAL/$f_relative")"
+
+        if [[ -z "$SKIP_EXTRACT" && ! -e "$DEST_FINAL/$SKIP_EXTRACT_MARKER_FILE" && ! -e "$dest_dir/$SKIP_EXTRACT_MARKER_FILE" ]]; then
+            extract.sh "$i" || { err "[$i] extraction failed, see logs"; continue; }  # TODO: pushover!
+        fi
+
+        if [[ -e "$DEST_FINAL/$f_relative" ]]; then
+            err "[$DEST_FINAL/$f_relative] already exists; cannot move [$i] into $dest_dir/"  # TODO: pushover!
+            continue
+        else
+            if [[ "$DEPTH" -gt 1 ]]; then
+                [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
+            fi
+            mv -- "$i" "$dest_dir/" || { err "[mv $i $dest_dir/] failed w/ $?"; continue; }  # TODO: pushover!
+        fi
+    done< <(find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print0)
+}
+
+
+work() {
+    local rmt_nodes add_filter to_download_list remote_nodes path_segments f_escaped s i
+
+    rmt_nodes=()
+    add_filter=()
+    to_download_list=()
+
+    # non-empty $DEST_INITIAL suggests issues during previous run(s):
+    find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print -quit | grep -q . && warn "expected DEST_INITIAL dir [$DEST_INITIAL] to be empty at depth=$DEPTH, but it's not"
+
+    # move assets _to_ remote (.torrent files to watchdir):
+    if [[ -d "$WATCHDIR_SRC" ]] && ! is_dir_empty "$WATCHDIR_SRC"; then
+        rclone move --log-file "$LOG_ROOT/rclone-move.log" "${RCLONE_FLAGS[@]}" \
+                "$WATCHDIR_SRC" "$REMOTE:$WATCHDIR_DEST" 2>"$LOG_ROOT/rclone-move.stderr.log" || err "rclone move from [$WATCHDIR_SRC] to [$WATCHDIR_DEST] failed w/ $?"  # TODO: pushover! but do _not_ fail out here
+    fi
+
+    # first list the remote source dir contents:
+    #
+    # note rclone doesn't implement --min-depth yet (see https://github.com/rclone/rclone/issues/6602);
+    # but to cheat, you could do  | grep -P '^([^/]+/){'"$((DEPTH-1))"'}[^/]+/?$'
+    remote_nodes="$(rclone lsf --log-file "$LOG_ROOT/rclone-lsf.log" \
+        "${RCLONE_FLAGS[@]}" --max-depth "$DEPTH" -- "$REMOTE:$SRC_DIR" 2>"$LOG_ROOT/rclone-lsf.stderr.log")" || fail "rclone lsf failed w/ $?"  # TODO: pushover!
+    readarray -t remote_nodes <<< "$remote_nodes"
+
+    # ...then verify which assets we haven't already downloaded-processed, and compile
+    # them into rclone '--filter' options:
+    for i in "${remote_nodes[@]}"; do
+        readarray -d / path_segments < <(printf '%s' "$i")  # process-substitution via printf is to prevent trailing newline that's produced by bash here-string (<<<)
+        [[ "${#path_segments[@]}" -ne "$DEPTH" ]] && continue
+
+        rmt_nodes+=("${i%/}")  # note we remove possible trailing slash; this way we can compare values to local nodes verbatim
+        [[ -e "$DEST_FINAL/${i%/}" ]] && continue  # already been processed
+        to_download_list+=("$i")
+        add_filter+=('--filter')
+        f_escaped="$(sed 's/[].\*^$()+?{}|[]/\\&/g' <<< "$i")"
+        [[ "$f_escaped" == */ ]] && add_filter+=("+ /${f_escaped}**") || add_filter+=("+ /$f_escaped")
+    done
+
+    # ...nuke assets that have been removed on the remote:
+    nuke_local_assets "${rmt_nodes[@]}"
+
+    # pull new assets:
+    if [[ "${#to_download_list[@]}" -gt 0 ]]; then
+        [[ "${#to_download_list[@]}" -gt 1 ]] && s=s
+        info "going to copy following ${#to_download_list[@]} node$s from remote:"
+
+        for i in "${to_download_list[@]}"; do
+            info "  > $i"
+        done
+
+        rclone copy --log-file "$LOG_ROOT/rclone-copy.log" "${RCLONE_FLAGS[@]}" \
+            "$REMOTE:$SRC_DIR" "$DEST_INITIAL" "${add_filter[@]}" --filter '- *' 2>"$LOG_ROOT/rclone-copy.stderr.log" || fail "rclone copy failed w/ $?"  # TODO: pushover!
+    fi
+
+    post_process
+
+    [[ "${#to_download_list[@]}" -gt 0 ]] && return 0 || return 1
+}
+
+
 #### ENTRY
 source /common.sh || { echo -e "    ERROR: failed to import /common.sh"; exit 1; }
 _prepare_locking || fail "_prepare_locking() failed w/ $?"
 
 [[ -f "$ENV_ROOT/pre-parse.sh" ]] && source "$ENV_ROOT/pre-parse.sh"
-
-REMOTE_NODES=()
-ADD_FILTER=()
-TO_DOWNLOAD_LIST=()
 
 if [[ -n "${RCLONE_FLAGS[*]}" ]]; then
     IFS="$SEPARATOR" read -ra RCLONE_FLAGS <<< "$RCLONE_FLAGS"
@@ -113,93 +216,18 @@ exlock_now || check_for_rclone_stall
 
 check_connection || fail 'no internets'
 
-# non-empty $DEST_INITIAL suggests issues during previous run(s):
-find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print -quit | grep -q . && warn "expected DEST_INITIAL dir [$DEST_INITIAL] to be empty at depth=$DEPTH, but it's not"
 
-# move assets _to_ remote (.torrent files to watchdir):
-if [[ -d "$WATCHDIR_SRC" ]] && ! is_dir_empty "$WATCHDIR_SRC"; then
-    rclone move --log-file "$LOG_ROOT/rclone-move.log" "${RCLONE_FLAGS[@]}" \
-            "$WATCHDIR_SRC" "$REMOTE:$WATCHDIR_DEST" 2>"$LOG_ROOT/rclone-move.stderr.log" || err "rclone move from [$WATCHDIR_SRC] to [$WATCHDIR_DEST] failed w/ $?"  # TODO: pushover! but do _not_ fail out here
-fi
-
-# first list the remote source dir contents:
-#
-# note rclone doesn't implement --min-depth yet (see https://github.com/rclone/rclone/issues/6602);
-# but to cheat, you could do  | grep -P '^([^/]+/){'"$((DEPTH-1))"'}[^/]+/?$'
-remote_nodes="$(rclone lsf --log-file "$LOG_ROOT/rclone-lsf.log" \
-    "${RCLONE_FLAGS[@]}" --max-depth "$DEPTH" -- "$REMOTE:$SRC_DIR" 2>"$LOG_ROOT/rclone-lsf.stderr.log")" || fail "rclone lsf failed w/ $?"  # TODO: pushover!
-readarray -t remote_nodes <<< "$remote_nodes"
-
-# ...then verify which assets we haven't already downloaded-processed, and compile
-# them into rclone '--filter' options:
-for f in "${remote_nodes[@]}"; do
-    readarray -d / path_segments < <(printf '%s' "$f")  # process-substitution via printf is to prevent trailing newline that's produced by bash here-string (<<<)
-    [[ "${#path_segments[@]}" -ne "$DEPTH" ]] && continue
-
-    REMOTE_NODES+=("${f%/}")  # note we remove possible trailing slash; this way we can compare values to local nodes verbatim
-    [[ -e "$DEST_FINAL/${f%/}" ]] && continue  # already been processed
-    TO_DOWNLOAD_LIST+=("$f")
-    ADD_FILTER+=('--filter')
-    f_escaped="$(sed 's/[].\*^$()+?{}|[]/\\&/g' <<< "$f")"
-    [[ "$f_escaped" == */ ]] && ADD_FILTER+=("+ /${f_escaped}**") || ADD_FILTER+=("+ /$f_escaped")
+# if some new files were downloaded, then immediately restart the process, as
+# remote download client might've completed new assets in the meantime:
+while true; do
+    work || break
 done
-
-# ...nuke assets that have been removed on the remote:
-if [[ -z "$SKIP_LOCAL_RM" ]]; then
-    # exclude DEST_INITIAL in case it defaults to a dir under DEST_FINAL/:
-    excluded_path="$DEST_INITIAL"
-    [[ "$DEPTH" -gt 1 ]] && excluded_path+='/*'
-
-    while IFS= read -r -d $'\0' f; do
-        if ! contains "${f##"${DEST_FINAL}/"}" "${REMOTE_NODES[@]}"; then
-            rm -rf -- "$f" \
-                    && info "removed [$f] whose remote counterpart is gone" \
-                    || err "[rm -rf $f] failed w/ $?"
-        fi
-    done< <(find -L "$DEST_FINAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -not \( -path "$excluded_path" -prune \) -print0)
-    unset excluded_path
-fi
-
-# pull new assets:
-if [[ "${#TO_DOWNLOAD_LIST[@]}" -gt 0 ]]; then
-    [[ "${#TO_DOWNLOAD_LIST[@]}" -gt 1 ]] && s=s
-    info "going to copy following ${#TO_DOWNLOAD_LIST[@]} node${s} from remote:"
-    unset s
-
-    for i in "${TO_DOWNLOAD_LIST[@]}"; do
-        info "  > $i"
-    done
-
-    rclone copy --log-file "$LOG_ROOT/rclone-copy.log" "${RCLONE_FLAGS[@]}" \
-        "$REMOTE:$SRC_DIR" "$DEST_INITIAL" "${ADD_FILTER[@]}" --filter '- *' 2>"$LOG_ROOT/rclone-copy.stderr.log" || fail "rclone copy failed w/ $?"  # TODO: pushover!
-fi
-
-# process assets.
-# note we work on _all_ nodes in $DEST_INITIAL, not only ones
-# that were pulled during this execution; this is essentially
-# for retrying previous failures:
-while IFS= read -r -d $'\0' f; do
-    f_relative="${f##"${DEST_INITIAL}/"}"
-    dest_dir="$(dirname -- "$DEST_FINAL/$f_relative")"
-
-    if [[ -z "$SKIP_EXTRACT" && ! -e "$DEST_FINAL/$SKIP_EXTRACT_MARKER_FILE" && ! -e "$dest_dir/$SKIP_EXTRACT_MARKER_FILE" ]]; then
-        extract.sh "$f" || { err "[$f] extraction failed, see logs"; continue; }  # TODO: pushover!
-    fi
-
-    if [[ -e "$DEST_FINAL/$f_relative" ]]; then
-        err "[$DEST_FINAL/$f_relative] already exists; cannot move [$f] into $dest_dir/"  # TODO: pushover!
-        continue
-    else
-        if [[ "$DEPTH" -gt 1 ]]; then
-            [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
-        fi
-        mv -- "$f" "$dest_dir/" || { err "[mv $f $dest_dir/] failed w/ $?"; continue; }  # TODO: pushover!
-    fi
-done< <(find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print0)
 
 # cleanup empty parent dirs:
 if [[ -n "$RM_EMPTY_PARENT_DIRS" && "$DEPTH" -gt 1 ]]; then
-    find -L "$DEST_INITIAL" "$DEST_FINAL" -mindepth 1 -maxdepth "$((DEPTH-1))" -not \( -path "$DEST_INITIAL" -prune \) -type d -empty -delete || err "find-deleting empty parent dirs failed w/ $?"
+    find -L "$DEST_INITIAL" "$DEST_FINAL" -mindepth 1 -maxdepth "$((DEPTH-1))" \
+        -not \( -path "$DEST_INITIAL" -prune \) -type d -empty -delete || err "find-deleting empty parent dirs failed w/ $?"
 fi
 
 exit 0
+
