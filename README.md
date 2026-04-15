@@ -41,9 +41,9 @@ archived asset handling isn't described in much detail, but can be found [here](
 ### Optional environment variables
 
 - `DEST_INITIAL`: path to the mounted dir in container where rclone initially downloads
-   data to; if not defined, then a directory is created inside `$DEST_FINAL`; it's 
-   highly recommended you define this. Also make sure it lies on the same filesystem
-   as `DEST_FINAL`, so `mv` command is atomic;
+   data to; if not defined, then a directory is created inside `$DEST_FINAL`;
+   it's recommended you define this. Also make sure it lies on the same
+   filesystem as `DEST_FINAL`, so `mv` command is atomic;
 - `DEPTH`: sets the depth level at which files are searched/synced at; defaults to 1;
    see below for closer depth explanation;
 - `RM_EMPTY_PARENT_DIRS`: set this to any non-empty value to delete empty parent dirs;
@@ -55,12 +55,12 @@ archived asset handling isn't described in much detail, but can be found [here](
    that were successfully extracted;
 - `SKIP_LOCAL_RM`: set this to any non-empty value to skip removing assets in 
   `$DEST_FINAL` whose counterpart has been removed on the remote;
-- `RCLONE_FLAGS`: semicolon-separated options to use with all `rclone` commands; note this
-   overwrites the default rclone flags altogether, so make sure you know what you're
-   doing;
-- `RCLONE_OPTS`: semicolon-separated _additional_ options to be passed to all `rclone` commands;
-  useful eg if you want to override the `--bwlimit` option (which defaults to 20M) or
-  increase logging verbosity;
+- `RCLONE_FLAGS`: semicolon-separated options to use with all `rclone` commands;
+   note this _overwrites_ the default rclone flags altogether, so make sure you
+   know what you're doing;
+- `RCLONE_OPTS`: semicolon-separated _additional_ options to be passed to all
+  `rclone` commands; useful eg if you want to override the `--bwlimit` option
+  (which defaults to 20M) or increase logging verbosity;
 - `WATCHDIR_DEST`: path to the watchdir on your remote;
 - `WATCHDIR_SRC`: path to the watchdir mounted in container;
 - `PGID`: group id; defaults to `100` (users)
@@ -72,8 +72,8 @@ archived asset handling isn't described in much detail, but can be found [here](
   by mounted directory (or directories if they reside on different mountpoints)
    - same for `WATCHDIR_SRC`, if defined
 - mount point to configuration root dir at `/config` also needs to be provided;
-- valid rclone config file `rclone.conf` needs to be present in `/config` mount dir;
-  this conf needs to define the remote referenced by `REMOTE` env var;
+- valid rclone config file `rclone.conf` needs to be present in `/config` mount
+  dir; this conf needs to define the remote referenced by `REMOTE` env var;
 
 
 ## Example docker command:

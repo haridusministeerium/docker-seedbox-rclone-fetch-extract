@@ -56,21 +56,14 @@ unlock()            { _lock u; }   # drop a lock
 
 # dir existence needs to be verified by the caller!
 is_dir_empty() {
-    local dir
-
-    readonly dir="$1"
-
+    local dir="$1"
     [[ -d "$dir" ]] || fail "[$dir] is not a valid dir."
-    find -L "$dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .
-    [[ $? -eq 0 ]] && return 1 || return 0
+    find -L "$dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q . && return 1 || return 0
 }
 
 
 is_function() {
-    local _type fun
-
-    fun="$1"
-    _type="$(type -t -- "$fun" 2> /dev/null)" && [[ "$_type" == 'function' ]]
+    typeset -f "$1" > /dev/null
 }
 
 
@@ -578,8 +571,8 @@ space_left() {
     space_avail="$(df -B1 -- "$node" | sed -n 2p | awk '{ print $4 }')"  # free space left of filesystem in bytes
     is_digit "$space_avail" || { err_display "found available free space on [$node] was not a digit: [$space_avail]" "$FUNCNAME"; return 1; }
 
-    space_avail="$(bc <<< "$space_avail * $coef")" || return 1
-    [[ "$round" -eq 1 ]] && LC_ALL=C printf -v space_avail '%.0f' "$space_avail"
+    [[ "$coef" == 1 ]] || space_avail="$(bc <<< "$space_avail * $coef")" || return 1
+    [[ "$round" == 1 ]] && LC_ALL=C printf -v space_avail '%.0f' "$space_avail"
     echo -n "$space_avail"
     return 0
 }
@@ -608,10 +601,10 @@ get_size() {
 
     # TODO: add --apparent-size  option? (note long options not supported on alpine!)
     size="$(du -sLb -- "$file" 2>/dev/null | cut -f1 | tr -d '[:space:]')"  # bytes
-    is_digit "$size" || { err "found size was not a valid one: [$size]"; return 1; }
+    is_digit "$size" || { err "found size was not valid: [$size]"; return 1; }
 
-    size="$(bc <<< "$size * $coef")" || return 1
-    [[ "$round" -eq 1 ]] && LC_ALL=C printf -v size '%.0f' "$size"
+    [[ "$coef" == 1 ]] || size="$(bc <<< "$size * $coef")" || return 1
+    [[ "$round" == 1 ]] && LC_ALL=C printf -v size '%.0f' "$size"
     echo -n "$size"
 }
 

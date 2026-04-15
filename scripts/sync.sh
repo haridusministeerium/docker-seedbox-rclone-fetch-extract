@@ -145,8 +145,8 @@ work() {
         "${RCLONE_FLAGS[@]}" --max-depth "$DEPTH" -- "$REMOTE:$SRC_DIR" 2>"$LOG_ROOT/rclone-lsf.stderr.log")" || fail "rclone lsf failed w/ $?"  # TODO: pushover!
     readarray -t remote_nodes <<< "$remote_nodes"
 
-    # ...then verify which assets we haven't already downloaded-processed, and compile
-    # them into rclone '--filter' options:
+    # ...then verify which assets we haven't already downloaded-processed, and
+    # compile them into rclone '--filter' options:
     for i in "${remote_nodes[@]}"; do
         readarray -d / path_segments < <(printf '%s' "$i")  # process-substitution via printf is to prevent trailing newline that's produced by bash here-string (<<<)
         [[ "${#path_segments[@]}" -ne "$DEPTH" ]] && continue
