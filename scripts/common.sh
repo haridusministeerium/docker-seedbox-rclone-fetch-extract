@@ -26,8 +26,6 @@ LOG_TIMESTAMP_FORMAT='+%F %T'
 
 HC_HEAD='https://hc-ping.com'
 
-DEFAULT_DEST_INITIAL='.rclone-intermediary'
-
 CURL_FLAGS=(
     -w '\n'
     --output /dev/null
@@ -734,7 +732,7 @@ validate_config_common() {
         [[ -d "$DEST_INITIAL" ]] || fail "DEST_INITIAL [$DEST_INITIAL] needs to be a valid dir - missing mount?"
         [[ -w "$DEST_INITIAL" ]] || fail "DEST_INITIAL [$DEST_INITIAL] is not writable"
     else
-        DEST_INITIAL="$DEST_FINAL/$DEFAULT_DEST_INITIAL"
+        DEST_INITIAL="$DEST_FINAL/.rclone-intermediary"  # default
     fi
 
     DEST_INITIAL="$(trim_trailing_slashes "$DEST_INITIAL")"
@@ -748,17 +746,11 @@ validate_config_common() {
         [[ -w "$WATCHDIR_SRC" ]] || fail "WATCHDIR_SRC [$WATCHDIR_SRC] is not writable"  # needs to be writable as we 'rclone move' files away, ie effectively deletion in SRC is needed
     fi
 
-    if [[ -n "$DEPTH" ]]; then
-        is_digit "$DEPTH" && [[ "$DEPTH" -ge 1 ]] || fail "DEPTH, when defined, needs to be digit >= 1, but is [$DEPTH]"
-    else
-        DEPTH=1  # default
-    fi
+    [[ -z "$DEPTH" ]] && DEPTH=1  # default
+    is_digit "$DEPTH" && [[ "$DEPTH" -ge 1 ]] || fail "DEPTH, when defined, needs to be digit >= 1, but is [$DEPTH]"
 
-    if [[ -n "$PROCESS_STALL_THRESHOLD_SEC" ]]; then
-        is_digit "$PROCESS_STALL_THRESHOLD_SEC" && [[ "$PROCESS_STALL_THRESHOLD_SEC" -ge 1 ]] || fail "PROCESS_STALL_THRESHOLD_SEC, when defined, needs to be digit >= 1, but is [$PROCESS_STALL_THRESHOLD_SEC]"
-    else
-        PROCESS_STALL_THRESHOLD_SEC=600  # default
-    fi
+    [[ -z "$PROCESS_STALL_THRESHOLD_SEC" ]] && PROCESS_STALL_THRESHOLD_SEC=600  # default
+    is_digit "$PROCESS_STALL_THRESHOLD_SEC" && [[ "$PROCESS_STALL_THRESHOLD_SEC" -ge 1 ]] || fail "PROCESS_STALL_THRESHOLD_SEC, when defined, needs to be digit >= 1, but is [$PROCESS_STALL_THRESHOLD_SEC]"
 
     [[ "$RCLONE_FLAGS" =~ (^|[^a-zA-Z0-9_])--(exclude|include)($|[^a-zA-Z0-9_]) ]] && warn 'replace [--{exclude*,include*}] flags with --filter ones; see https://rclone.org/filtering/#filter-add-a-file-filtering-rule'
 
@@ -767,12 +759,9 @@ validate_config_common() {
 
 
 mkdir_w_rights() {
-    local d
-
-    d="$1"
+    local d="$1"
 
     [[ -d "$d" ]] || mkdir -p -- "$d" || fail "[mkdir -p $d] failed w/ $?"
-
     if [[ "$EUID" -eq 0 && -n "$PUID" && -n "$PGID" ]]; then
         chown -R "${PUID}:${PGID}" "$d" || fail "[chown -R $PUID:$PGID $d] failed w/ $?"
     fi

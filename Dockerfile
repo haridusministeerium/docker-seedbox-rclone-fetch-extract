@@ -1,7 +1,8 @@
 FROM alpine:3
 
 ENV LANG=C.UTF-8 \
-    RCLONE_VER=1.72.1-r3
+    RCLONE_VER=1.72.1-r3 \
+    REGULAR_USER=abc
 
 ADD scripts/* /usr/local/sbin/
 ADD files/*   /
@@ -24,7 +25,7 @@ RUN apk update && \
         tzdata \
         msmtp \
         logrotate && \
-    useradd -u 1000 -U -G users -d /config -s /bin/false abc && \
+    useradd -u 1000 -U -G users -d /config -s /bin/false $REGULAR_USER && \
     chown -R root:root /usr/local/sbin/ && \
     chmod -R 755 /usr/local/sbin/ && \
     ln -s /usr/local/sbin/setup.sh /setup.sh && \
@@ -32,6 +33,6 @@ RUN apk update && \
     ln -s /usr/local/sbin/common.sh /common.sh && \
     rm -rf /var/cache/apk/* /tmp/* /root/.cache
 
-#USER abc  # continue as root, as we need to set UID & GID in entrypoint!
+#USER $REGULAR_USER  # continue as root, as we need to set UID & GID in entrypoint!
 ENTRYPOINT ["/usr/local/sbin/entry.sh"]
 

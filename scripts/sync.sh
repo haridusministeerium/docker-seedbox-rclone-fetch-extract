@@ -77,19 +77,17 @@ nuke_local_assets() {
 
     rmt_nodes=("$@")
 
-    if [[ -z "$SKIP_LOCAL_RM" ]]; then
-        # exclude DEST_INITIAL in case it defaults to a dir under DEST_FINAL/:
-        excluded_path="$DEST_INITIAL"
-        [[ "$DEPTH" -gt 1 ]] && excluded_path+='/*'
+    # exclude DEST_INITIAL in case it defaults to a dir under DEST_FINAL/:
+    excluded_path="$DEST_INITIAL"
+    [[ "$DEPTH" -gt 1 ]] && excluded_path+='/*'
 
-        while IFS= read -r -d $'\0' i; do
-            if ! contains "${i##"${DEST_FINAL}/"}" "${rmt_nodes[@]}"; then
-                rm -rf -- "$i" \
-                        && info "removed [$i] whose remote counterpart is gone" \
-                        || err "[rm -rf $i] failed w/ $?"
-            fi
-        done< <(find -L "$DEST_FINAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -not \( -path "$excluded_path" -prune \) -print0)
-    fi
+    while IFS= read -r -d $'\0' i; do
+        if ! contains "${i##"${DEST_FINAL}/"}" "${rmt_nodes[@]}"; then
+            rm -rf -- "$i" \
+                    && info "removed [$i] whose remote counterpart is gone" \
+                    || err "[rm -rf $i] failed w/ $?"
+        fi
+    done< <(find -L "$DEST_FINAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -not \( -path "$excluded_path" -prune \) -print0)
 }
 
 
@@ -160,7 +158,7 @@ work() {
     done
 
     # ...nuke assets that have been removed on the remote:
-    nuke_local_assets "${rmt_nodes[@]}"
+    [[ -z "$SKIP_LOCAL_RM" ]] && nuke_local_assets "${rmt_nodes[@]}"
 
     # pull new assets:
     if [[ "${#to_download_list[@]}" -gt 0 ]]; then
@@ -185,7 +183,7 @@ work() {
 source /common.sh || { echo -e "    ERROR: failed to import /common.sh"; exit 1; }
 _prepare_locking || fail "_prepare_locking() failed w/ $?"
 
-[[ -f "$ENV_ROOT/pre-parse.sh" ]] && source "$ENV_ROOT/pre-parse.sh"
+[[ -s "$ENV_ROOT/pre-parse.sh" ]] && source "$ENV_ROOT/pre-parse.sh"
 
 if [[ -n "${RCLONE_FLAGS[*]}" ]]; then
     IFS="$SEPARATOR" read -ra RCLONE_FLAGS <<< "$RCLONE_FLAGS"
@@ -207,7 +205,7 @@ if [[ -n "${RCLONE_OPTS[*]}" ]]; then
     RCLONE_FLAGS+=("${rclone_opts[@]}")   # allow extending w/ user-provided opts
 fi
 
-[[ -f "$ENV_ROOT/post-parse.sh" ]] && source "$ENV_ROOT/post-parse.sh"
+[[ -s "$ENV_ROOT/post-parse.sh" ]] && source "$ENV_ROOT/post-parse.sh"
 validate_config_common  # check after post-parse.sh sourcing to make sure nothing's been hecked up
 
 # note we lock this late to ensure validate_config_common() has been executed beforehand

@@ -2,14 +2,13 @@
 #
 # this is service bootstrap logic to be called from container entrypoint.
 #
-# - sets up our user (abc) id & gid;
+# - sets up our user ($REGULAR_USER) id & gid;
 # - initialises crontab;
 # - configures msmtprc for mail notifications;
 
 readonly SELF="${0##*/}"
 DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"  # location of this script
 
-readonly REGULAR_USER=abc  # needs to be kept in-sync with value in Dockerfile!
 readonly CRONFILE_TEMPLATE='/cron.template'
 readonly CRON_TARGET="/etc/crontabs/$REGULAR_USER"  # note filename needs to match user's!
 readonly DEFAULT_CRON_PATTERN='*/5 * * * *'
@@ -42,7 +41,7 @@ setup_users() {
 
 
 setup_cron() {
-    if [[ -f "$CONF_ROOT/crontab" ]]; then
+    if [[ -s "$CONF_ROOT/crontab" ]]; then
         cp -- "$CONF_ROOT/crontab" "$CRON_TARGET" || fail "copying user-provided crontab failed"
     else
         # copy fresh template...
