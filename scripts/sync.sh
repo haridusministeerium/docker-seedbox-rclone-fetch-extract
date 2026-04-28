@@ -106,19 +106,24 @@ post_process() {
             extract.sh "$i" || { err "[$i] extraction failed, see logs"; continue; }  # TODO: pushover!
         fi
 
+        if [[ -z "$SKIP_MERGE_VOB" ]]; then
+            merge_vob.sh "$i" || { err "[$i] DVD merging failed, see logs"; continue; }  # TODO: pushover!
+        fi
+
         if [[ -e "$DEST_FINAL/$f_relative" ]]; then
             err "[$DEST_FINAL/$f_relative] already exists; cannot move [$i] into $dest_dir/"  # TODO: pushover!
             continue
-        else
-            if [[ "$DEPTH" -gt 1 ]]; then
-                [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
-            fi
-            mv -- "$i" "$dest_dir/" || { err "[mv $i $dest_dir/] failed w/ $?"; continue; }  # TODO: pushover!
         fi
+
+        if [[ "$DEPTH" -gt 1 ]]; then
+            [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
+        fi
+        mv -- "$i" "$dest_dir/" || { err "[mv $i $dest_dir/] failed w/ $?"; continue; }  # TODO: pushover!
     done< <(find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print0)
 }
 
 
+# returns true if _some_ asset was pulled, false otherwise
 work() {
     local rmt_nodes add_filter to_download_list remote_nodes path_segments f_escaped s i
 
@@ -174,8 +179,7 @@ work() {
     fi
 
     post_process
-
-    [[ "${#to_download_list[@]}" -gt 0 ]] && return 0 || return 1
+    [[ "${#to_download_list[@]}" -gt 0 ]]
 }
 
 

@@ -12,6 +12,8 @@ RUN apk update && \
     apk add --no-cache --allow-untrusted /tmp/unrar.apk && \
     apk add --no-cache \
         rclone=$RCLONE_VER \
+        mkvtoolnix \
+        ffmpeg \
         unzip \
         grep \
         file \

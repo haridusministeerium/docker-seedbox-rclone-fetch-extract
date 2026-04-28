@@ -46,15 +46,18 @@ archived asset handling isn't described in much detail, but can be found [here](
    filesystem as `DEST_FINAL`, so `mv` command is atomic;
 - `DEPTH`: sets the depth level at which files are searched/synced at; defaults to 1;
    see below for closer depth explanation;
-- `RM_EMPTY_PARENT_DIRS`: set this to any non-empty value to delete empty parent dirs;
+- `RM_EMPTY_PARENT_DIRS`: set to any non-empty value to delete empty parent dirs;
    used only if DEPTH > 1;
 - `CRON_PATTERN`: cron pattern to be used to execute the syncing script;
    eg `*/10 * * * *` to execute every 10 minutes; defaults to every 5 min;
-- `SKIP_EXTRACT`: set this to any non-empty value to skip archived file extraction;
-- `SKIP_ARCHIVE_RM`: set this to any non-empty value to skip removal of archives 
+- `SKIP_EXTRACT`: set to any non-empty value to skip archived file extraction;
+- `SKIP_MERGE_VOB`: set to any non-empty value to skip merging DVD .VOB
+   files into a single .mkv file;
+- `SKIP_ARCHIVE_RM`: set to any non-empty value to skip removal of archives 
    that were successfully extracted;
-- `SKIP_LOCAL_RM`: set this to any non-empty value to skip removing assets in 
-  `$DEST_FINAL` whose counterpart has been removed on the remote;
+- `SKIP_VOB_RM`: set to any non-empty value to skip removal of merged .VOB DVD files;
+- `SKIP_LOCAL_RM`: set to any non-empty value to skip removing assets in 
+   `$DEST_FINAL` whose counterpart has been removed on the remote;
 - `RCLONE_FLAGS`: semicolon-separated options to use with all `rclone` commands;
    note this _overwrites_ the default rclone flags altogether, so make sure you
    know what you're doing;
@@ -220,9 +223,9 @@ su abc -s /bin/sh -c /sync.sh
 - healthchecks
 - do we need `--tpslimit` and/or `--checkers` option?
 - confirm optimal `--transfers` opt;
-- confirm `extract.sh/enough_space_for_extraction()` works as intended
+- confirm `common.sh/has_enough_space()` works as intended
 - skip downloads of assets that wouldn't fit on local filesystem; eg similar to
-  enough_space_for_extraction(), but for downloading, not extracting;
+  has_enough_space(), but for downloading, not extracting;
 - find a better way for compiling `copy` command - atm we're escaping filenames for
   the `--filter +` flags; `--files-from` might be an option, but unsure whether
   it'd pull the whole dir if only dir -- as opposed to its contents -- is listed;

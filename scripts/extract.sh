@@ -16,24 +16,7 @@ declare -A FORMAT_TO_COMMAND=(
 )
 EXTRACTION_SUBDIR="${EXTRACTION_SUBDIR:-extracted}"  # content will be extracted into this to-be-created subfolder; no slashes!
                                                      # note if this dir already exists, we modify this value.
-EXTRACT_DISK_THRESHOLD_GB=${EXTRACT_DISK_THRESHOLD_GB:-30}  # in GB; we must estimate min. this amount of free disk space left _after_ extraction, otherwise skip.
-
-
-enough_space_for_extraction() {
-    local f free_disk size free_disk_after_gb
-
-    f="$1"
-
-    free_disk="$(space_left -b "$f")" || fail "space_left() returned w/ $?"  # bytes
-    size="$(get_size -b "$f")" || fail "get_size() returned w/ $?"  # bytes; note we estimate unpacked $f size to equal its size in packed state
-
-    free_disk_after_gb="$(bc <<< "($free_disk - $size) * 0.000000001")"  # byte -> GB
-    LC_ALL=C printf -v free_disk_after_gb '%.0f' "$free_disk_after_gb"
-
-    [[ "$free_disk_after_gb" -ge "$EXTRACT_DISK_THRESHOLD_GB" ]] && return 0
-    err "skipping [$f] extraction - final free disk would be ~ [${free_disk_after_gb}GB], below our threshold of [${EXTRACT_DISK_THRESHOLD_GB}GB]"
-    return 1
-}
+EXTRACT_DISK_THRESHOLD_GB=${EXTRACT_DISK_THRESHOLD_GB:-2}  # in GB; we must estimate min. this amount of free disk space left _after_ extraction, otherwise skip.
 
 
 
@@ -45,7 +28,7 @@ for format in "${!FORMAT_TO_COMMAND[@]}"; do
     while IFS= read -r -d $'\0' file; do
         ft="$(file --brief "$file")"
         if ! grep -qiE 'archive|compressed' <<< "$ft"; then
-            err "file [$file] is not an archive: filetype is [$ft]"
+            err "file [$file] is not an archive: detected filetype is [$ft]"
             continue
         fi
 
@@ -72,7 +55,7 @@ for format in "${!FORMAT_TO_COMMAND[@]}"; do
             file="../$filename"
         fi
 
-        enough_space_for_extraction "$file" || { ERR=1; continue; }  # TODO: pushover? or is sync.sh sending pushover notif when extract.sh exits w/ err?
+        has_enough_space "$EXTRACT_DISK_THRESHOLD_GB" "$file" || { ERR=1; continue; }  # TODO: pushover? or is sync.sh sending pushover notif when extract.sh exits w/ err?
 
         info "extracting [$ASSET] file [$filename] into [$(pwd)]..."
 

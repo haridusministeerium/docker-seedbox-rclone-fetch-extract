@@ -21,8 +21,9 @@ check_dependencies() {
 
     for i in curl bc du df tr sed grep find \
              file flock groupmod usermod ping \
-             rclone unzip unrar tar kill pgrep date; do
-        command -v "$i" >/dev/null || fail "[$i] not installed"
+             rclone unzip unrar tar kill pgrep date \
+             ffmpeg mkvmerge ffprobe; do
+        command -v "$i" >/dev/null || fail "[$i] not installed/available"
     done
 }
 

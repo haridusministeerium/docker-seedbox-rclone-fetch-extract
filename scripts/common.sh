@@ -375,6 +375,15 @@ contains() {
 }
 
 
+# see https://stackoverflow.com/a/17841619/1803648
+join_by() {
+    local d=${1-} f=${2-}
+    if shift 2; then
+        printf %s "$f" "${@/#/$d}"
+    fi
+}
+
+
 join() {
     local opt OPTIND sep list i
 
@@ -402,7 +411,7 @@ join() {
 print_time() {
     local sec tot r
 
-    sec="$1"
+    LC_ALL=C printf -v sec '%.0f' "$1"  # round to int
 
     tot=$((sec%60))
     r="${tot}s"
@@ -536,6 +545,32 @@ is_decimal_signed() {
 }
 
 
+has_enough_space() {
+    local f i free_space_threshold_gb free_disk size free_disk_after_gb sum m
+
+    free_space_threshold_gb="$1"
+    shift
+    f=("$@")
+
+    sum=0
+    for i in "${f[@]}"; do
+        size="$(get_size -b "$i")" || fail "get_size() for [$i] returned w/ $?"  # bytes
+        (( sum+=size ))
+    done
+
+    # note space left is calculated for the first passed file filesystem:
+    free_disk="$(space_left -b "${f[0]}")" || fail "space_left() returned w/ $?"  # bytes
+
+    free_disk_after_gb="$(bc <<< "($free_disk - $sum) * 0.000000001")"  # byte -> GB
+    (( $(bc <<< "$free_disk_after_gb >= $free_space_threshold_gb") )) && return 0
+
+    m="$(basename -- "${f[0]}")"
+    [[ "${#f[@]}" -gt 1 ]] && m+="... (${#f[@]} files in total)"
+    err "skipping [$m] process -- final free disk would be ~${free_disk_after_gb}GB, below our threshold of [${free_space_threshold_gb}GB]"
+    return 1
+}
+
+
 # Finds the remaining free space in requested units for the filesystem the given node resides on.
 # !! Note this is highly platform-dependant, this particular has been tested on Alpine.
 #
@@ -599,7 +634,7 @@ get_size() {
 
     # TODO: add --apparent-size  option? (note long options not supported on alpine!)
     size="$(du -sLb -- "$file" 2>/dev/null | cut -f1 | tr -d '[:space:]')"  # bytes
-    is_digit "$size" || { err "found size was not valid: [$size]"; return 1; }
+    is_digit "$size" || { err "[$file] size was not valid: [$size]"; return 1; }
 
     [[ "$coef" == 1 ]] || size="$(bc <<< "$size * $coef")" || return 1
     [[ "$round" == 1 ]] && LC_ALL=C printf -v size '%.0f' "$size"
@@ -745,6 +780,8 @@ validate_config_common() {
         [[ -d "$WATCHDIR_SRC" ]] || fail "WATCHDIR_SRC [$WATCHDIR_SRC], when defined, needs to be a valid dir - missing mount?"
         [[ -w "$WATCHDIR_SRC" ]] || fail "WATCHDIR_SRC [$WATCHDIR_SRC] is not writable"  # needs to be writable as we 'rclone move' files away, ie effectively deletion in SRC is needed
     fi
+    [[ -z "$EXTRACT_DISK_THRESHOLD_GB" ]] || is_digit "$EXTRACT_DISK_THRESHOLD_GB" || fail "EXTRACT_DISK_THRESHOLD_GB [$EXTRACT_DISK_THRESHOLD_GB], when defined, needs to be a digit"
+    [[ -z "$MIN_FREE_SPACE_GB" ]] || is_digit "$MIN_FREE_SPACE_GB" || fail "MIN_FREE_SPACE_GB [$MIN_FREE_SPACE_GB], when defined, needs to be a digit"
 
     [[ -z "$DEPTH" ]] && DEPTH=1  # default
     is_digit "$DEPTH" && [[ "$DEPTH" -ge 1 ]] || fail "DEPTH, when defined, needs to be digit >= 1, but is [$DEPTH]"
