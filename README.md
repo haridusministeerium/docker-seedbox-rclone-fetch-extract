@@ -1,7 +1,7 @@
-# Seedbox data fetcher & extractor
+# Seedbox data fetcher & processor
 
-Dockerised service periodically pulling data from a remote seedbox & extracting
-archived files.
+Dockerised service periodically pulling and post-processing data from a remote
+seedbox.
 
 Note data is synced unidirectionally, and if already downloaded & processed
 asset gets deleted on the remote, then it's also nuked locally. This is generally
@@ -15,15 +15,14 @@ remote (apart from deletion), then those modifications will no longer be reflect
 ## Rationale
 
 This service aims to solve a common issue with the servarr projects around data import
-(+ also provides extraction) described [here](https://forums.sonarr.tv/t/slow-transfer-from-remote-machine-fails-import/29013).
-tl;dr of it is if \*arr is monitoring a directory and expecting say full season worth
+(+ also provides extraction and merging of DVD .VOB files) described [here](https://forums.sonarr.tv/t/slow-transfer-from-remote-machine-fails-import/29013).
+TL;DR of it is if \*arr is monitoring a directory and expecting say full season worth
 of files, but by the time it goes to check/import only half of episodes have been
 downloaded from your remote seedbox, then only those episodes present would be imported.
 
 We solve this by using rclone to first download assets into an intermediary
-directory not monitored by \*arr services, optionally process them (eg extract
-archives), and then move them atomically to a destination directory that \*arr
-expects them in.
+directory not monitored by \*arr services, optionally process them, and then
+move them atomically to a destination directory that \*arr expects them in.
 
 servarrs' completed download handling is documented/described [here](https://wiki.servarr.com/en/sonarr/settings#completed-download-handling);
 archived asset handling isn't described in much detail, but can be found [here](https://wiki.servarr.com/en/sonarr/troubleshooting#packed-torrents).
@@ -215,6 +214,11 @@ user, otherwise you may accidentally mess up some files' ownership. e.g.:
 su abc -s /bin/sh -c 'rclone lsf -vvv --max-depth 1 --config /config/rclone.conf  your-remote:'
 su abc -s /bin/sh -c /sync.sh
 ```
+
+## See also
+
+- rclone mount (+ optionally mergerFS) systemd services: [see this discord](https://discord.com/channels/427913240316477443/427914848702038026/1460040373681389672)
+
 
 ## TODO
 

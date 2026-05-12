@@ -19,7 +19,6 @@ EXTRACTION_SUBDIR="${EXTRACTION_SUBDIR:-extracted}"  # content will be extracted
 EXTRACT_DISK_THRESHOLD_GB=${EXTRACT_DISK_THRESHOLD_GB:-2}  # in GB; we must estimate min. this amount of free disk space left _after_ extraction, otherwise skip.
 
 
-
 ## ENTRY
 source /common.sh || { echo -e "    ERROR: failed to import /common.sh"; exit 1; }
 unset ERR

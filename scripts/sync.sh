@@ -115,9 +115,7 @@ post_process() {
             continue
         fi
 
-        if [[ "$DEPTH" -gt 1 ]]; then
-            [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
-        fi
+        [[ "$DEPTH" -le 1 ]] || [[ -d "$dest_dir" ]] || mkdir -p "$dest_dir" || { err "[mkdir -p $dest_dir] failed w/ $?"; continue; }  # TODO: pushover!
         mv -- "$i" "$dest_dir/" || { err "[mv $i $dest_dir/] failed w/ $?"; continue; }  # TODO: pushover!
     done< <(find -L "$DEST_INITIAL" -mindepth "$DEPTH" -maxdepth "$DEPTH" -print0)
 }
