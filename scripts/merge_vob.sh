@@ -21,18 +21,18 @@ MIN_FREE_SPACE_GB=${MIN_FREE_SPACE_GB:-2}  # in GB; we must estimate min. this a
 
 
 ## ENTRY
-source /common.sh || { echo -e "    ERROR: failed to import /common.sh"; exit 1; }
-
-declare -A VTS_ID_TO_DURATION
-declare -a WHITELISTED_FILES
-
 #readarray -t VOBS < <(find "$ASSET" -type f -size +100M -name 'VTS_*.VOB' | sort -V)
 readarray -t VOBS < <(find "$ASSET" -type f -name 'VTS_*.VOB' | sort -V)
-[[ "${#VOBS[@]}" -eq 0 ]] && exit 0  # likely not processing a DVD input, bail
+[[ "${#VOBS[@]}" -eq 0 ]] && exit 0  # not processing a DVD input, bail
+
+source /common.sh || { echo -e "    ERROR: failed to import /common.sh"; exit 1; }
 
 [[ -e "$OUTPUT" ]] && fail "[$OUTPUT] output already exists"  # sanity
 [[ -d "$ASSET" ]] || fail "input [$ASSET] is not a dir"
 cd -- "$ASSET" || fail  # cd just in case, but should not be needed
+
+declare -A VTS_ID_TO_DURATION
+declare -a WHITELISTED_FILES  INPUT
 
 # Step 1: group VOBs by VTS and sum durations.
 #         usually VTS_01_* contains the main movie, but we'll select whatever
@@ -52,23 +52,21 @@ done
 
 # Step 2: find the longest VTS (likely VTS_01), and collect its valid files into INPUT array
 unset MAX_VTS_ROOT
-max_duration=0
+MAX_DURATION=0
 
 for vts_root in "${!VTS_ID_TO_DURATION[@]}"; do
-    d=${VTS_ID_TO_DURATION[$vts_root]}
-
-    if (( $(bc <<< "$d > $max_duration") )); then
-        max_duration=$d
+    dur=${VTS_ID_TO_DURATION[$vts_root]}
+    if (( $(bc <<< "$dur > $MAX_DURATION") )); then
+        MAX_DURATION=$dur
         MAX_VTS_ROOT=$vts_root
     fi
 done
 
-[[ -z "$MAX_VTS_ROOT" ]] && fail "could not detect main movie"  # sanity
-INPUT=()
+[[ -z "$MAX_VTS_ROOT" ]] && fail 'could not detect main movie'  # sanity
 for f in "${WHITELISTED_FILES[@]}"; do
     [[ "$(basename -- "$f")" == "$MAX_VTS_ROOT"_* ]] && INPUT+=("$f")
 done
-info "main DVD movie detected: $MAX_VTS_ROOT (${#INPUT[@]} file(s), ~$(print_time "$max_duration") runtime)"
+info "main DVD movie detected: $MAX_VTS_ROOT (${#INPUT[@]} file(s), ~$(print_time "$MAX_DURATION") runtime)"
 
 # Step 3: merge
 info "merging DVD .VOB files in [$ASSET] into [$OUTPUT]..."
@@ -81,7 +79,7 @@ case "${VOB_MERGE:-mkvmerge}" in
         #   - ffmpeg -i "concat:VTS_01_1.VOB|VTS_01_2.VOB|VTS_01_3.VOB|VTS_01_4.VOB" -f mpeg -c copy output.mpeg
         #   - ffmpeg -i "concat:VTS_01_1.VOB|VTS_01_2.VOB|VTS_01_3.VOB|VTS_01_4.VOB" -f dvd -c copy output.mpeg
         ffmpeg -loglevel error -i "concat:$(join_by '|' "${INPUT[@]}")" -f dvd \
-            -c copy "$OUTPUT" || fail "ffmpeg merge failed w/ $?"
+                -c copy "$OUTPUT" || fail "ffmpeg merge failed w/ $?"
         #ffmpeg -y \
             #-loglevel error \
             #-i "concat:$(join_by '|' "${INPUT[@]}")" \
