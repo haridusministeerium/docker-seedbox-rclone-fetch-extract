@@ -12,7 +12,7 @@ JOB_ID="$PPID"  # PID of the calling sync.sh process
 declare -A FORMAT_TO_COMMAND=(
     [zip]='unzip -u'
     [rar]='unrar -o- e'
-    [tgz]='tar zxvf'
+    [tgz]='tar zxvf'  # note tar supports vast majority of compression algos; e.g. `tar -C "$d" -axf "$file" &>/dev/null` (-C "$ext_dir" only of we don't cd there ourselves first)
 )
 EXTRACTION_SUBDIR="${EXTRACTION_SUBDIR:-extracted}"  # content will be extracted into this to-be-created subfolder; no slashes!
                                                      # note if this dir already exists, we modify this value.

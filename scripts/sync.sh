@@ -110,6 +110,10 @@ post_process() {
             merge_vob.sh "$i" || { err "[$i] DVD merging failed, see logs"; continue; }  # TODO: pushover!
         fi
 
+        if [[ -z "$SKIP_REMUX_BR" ]]; then
+            remux_br.sh "$i" || { err "[$i] BluRay remux failed, see logs"; continue; }  # TODO: pushover!
+        fi
+
         if [[ -e "$DEST_FINAL/$f_relative" ]]; then
             err "[$DEST_FINAL/$f_relative] already exists; cannot move [$i] into $dest_dir/"  # TODO: pushover!
             continue

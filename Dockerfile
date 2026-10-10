@@ -17,6 +17,7 @@ RUN apk update && \
         unzip \
         grep \
         file \
+        jq \
         coreutils \
         findutils \
         iputils \

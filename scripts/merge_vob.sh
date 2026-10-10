@@ -14,6 +14,7 @@
 readonly SELF="${0##*/}"
 DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"  # location of this script
 
+#ASSET="$(realpath -- "$1")"
 ASSET="$1"
 JOB_ID="$PPID"  # PID of the calling sync.sh process
 
@@ -109,6 +110,11 @@ if [[ -z "$SKIP_VOB_RM" ]]; then
     info "removed ${#VOBS[@]} .VOB files"
     #find "$ASSET" -type f -name 'VTS_*.VOB' -delete \
         #|| fail "find-deleting VTS_*.VOB files in [$ASSET] failed w/ $?"
+
+    # or alternatively a more thorough nuke:
+    #while IFS= read -r -d $'\0' f; do
+        #[[ "$f" != "$OUTPUT" ]] && rm -rf -- "$f"
+    #done < <(find "$ASSET" -maxdepth 1 -mindepth 1 -print0)
 fi
 
 exit 0
