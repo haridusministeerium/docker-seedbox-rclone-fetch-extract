@@ -1,12 +1,12 @@
 FROM alpine:3
 
 ENV LANG=C.UTF-8 \
-    RCLONE_VER=1.72.1-r3 \
+    RCLONE_VER=1.74.1-r2 \
     REGULAR_USER=abc
 
 ADD scripts/* /usr/local/sbin/
 ADD files/*   /
-COPY deps/builds/unrar-7.2.5-r0.apk  /tmp/unrar.apk
+COPY deps/builds/unrar-7.3.1-r0.apk  /tmp/unrar.apk
 
 RUN apk update && \
     apk add --no-cache --allow-untrusted /tmp/unrar.apk && \
